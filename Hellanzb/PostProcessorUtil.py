@@ -590,6 +590,9 @@ def unrar(postProcessor, fileName, pathToExtract = None):
                          sys.argv[0] + \
                          ' -p on the archive directory with the -P option to specify a password')
 
+    # Keep a list of files that will be extracted, we can fix their permissions
+    extractedFiles = []
+
     # Ensure no files in this rar already exist on the filesystem (rename the ones on the
     # filesystem that clash)
     renamedFiles = {}
@@ -607,9 +610,12 @@ def unrar(postProcessor, fileName, pathToExtract = None):
         pathToExtractPrefixLen = len(pathToExtract)
         if not pathToExtract.endswith(os.sep):
             pathToExtractPrefixLen = len(pathToExtract) + 1
-        clash = os.path.join(pathToExtract, raredFile)
-        if os.path.exists(clash):
-            renamed = renamedFiles[clash] = hellaRename(clash)
+
+        absoluteRaredFile = os.path.join(pathToExtract, raredFile)
+        extractedFiles.append(absoluteRaredFile)
+
+        if os.path.exists(absoluteRaredFile):
+            renamed = renamedFiles[absoluteRaredFile] = hellaRename(absoluteRaredFile)
             renamed = renamed[pathToExtractPrefixLen:]
             warn('%s: Renamed %s to %s (rar: %s has the same file)' % \
                      (archiveName(postProcessor.dirName), raredFile, renamed,
@@ -639,6 +645,14 @@ def unrar(postProcessor, fileName, pathToExtract = None):
             err += line
         errMsg += err.strip()
         raise FatalError(errMsg)
+
+    # Make sure everything we've extracted is read+write for our user
+    for file in extractedFiles:
+        try:
+            statData = os.stat(file)
+            os.chmod(file, statData.st_mode | 0600)
+        except OSError:
+            info(archiveName(postProcessor.dirName) + ': Could not chmod ' + file)
 
     # Return a tally of all the rars extracted from
     processedRars = []
